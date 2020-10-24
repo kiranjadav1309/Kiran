@@ -1,0 +1,68 @@
+<workflow-app name="wf_${myFolder}"
+	xmlns="uri:oozie:workflow:0.5">
+	<start to="getConfig"/>
+	<decision name="ChkRecordCount_appl1">
+		<switch>
+			<case to="oozie_sample_prev">${(wf:actionData('getRecordCount-appl1')['zeroCountTblVar'] eq 0)}</case>
+			<default to="kill"/>
+		</switch>
+	</decision>
+	<action name="getConfig">
+		<shell
+			xmlns="uri:oozie:shell-action:0.3">
+			<job-tracker>${resourceManager}</job-tracker>
+			<name-node>${nameNode}</name-node>
+			<exec>${appPath}/conf/getConfig.sh</exec>
+			<file>${appPath}/conf/getConfig.sh</file>
+			<capture-output></capture-output>
+		</shell>
+		<ok to="getRecordCount-appl1"/>
+		<error to="kill"/>
+	</action>
+	<action name="getRecordCount-appl1">
+		<ssh
+			xmlns="uri:oozie:ssh-action:0.2">
+			<host>${sshHost}</host>
+			<command>${wf:actionData('getConfig')['sshPath']}/${wf:actionData('getConfig')['sshScripts']}/recCountChk.sh</command>
+			<args>"${jdbcUrl};${hs2Principal}"</args>
+			<args>${wf:actionData('getConfig')['sshPath']}/${wf:actionData('getConfig')['sshSQL']}/hiveRecCountSQLappl1.hql</args>
+			<args>${zeroCountTblVar}</args>
+			<args>${queueName}</args>
+			<capture-output></capture-output>
+		</ssh>
+		<ok to="ChkRecordCount_appl1"/>
+		<error to="kill"/>
+	</action>
+	<action name="appl1_prev">
+		<ssh
+			xmlns="uri:oozie:ssh-action:0.2">
+			<host>${sshHost}</host>
+			<command>${wf:actionData('getConfig')['fdnsshPath']}/${wf:actionData('getConfig')['Scripts']}/spark2_job1.sh</command>
+			<args>"${jdbcUrl};${hs2Principal}"</args>
+			<args>${wf:actionData('getConfig')['keyTabFile']}</args>
+			<args>${wf:actionData('getConfig')['myDestTable']}_Customer.out</args>
+			<args>${queueName}</args>
+			<capture-output></capture-output>
+		</ssh>
+		<ok to="appl1"/>
+		<error to="kill"/>
+	</action>
+	<action name="appl1">
+		<ssh
+			xmlns="uri:oozie:ssh-action:0.2">
+			<host>${sshHost}</host>
+			<command>${wf:actionData('getConfig')['fdnsshPath']}/${wf:actionData('getConfig')['Scripts']}/spark2_job2.sh</command>
+			<args>"${jdbcUrl};${hs2Principal}"</args>
+			<args>${wf:actionData('getConfig')['keyTabFile']}</args>
+			<args>${wf:actionData('getConfig')['myDestTable']}_Customer.out</args>
+			<args>${queueName}</args>
+			<capture-output></capture-output>
+		</ssh>
+		<ok to="end"/>
+		<error to="kill"/>
+	</action>
+	<kill name="kill">
+		<message>${wf:errorMessage(wf:lastErrorNode())}</message>
+	</kill>
+	<end name="end"/>
+</workflow-app>
